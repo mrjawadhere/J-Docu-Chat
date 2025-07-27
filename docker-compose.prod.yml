@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    expose:
+      - "8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CHROMA_PERSIST_DIR=/app/chroma
+      - MAX_FILE_SIZE_MB=20
+      - CORS_ORIGINS=https://j-doc-chat.com,https://api.j-doc-chat.com
+    volumes:
+      - uploads_data:/app/uploads
+      - chroma_data:/app/chroma
+    networks:
+      - jdocchat-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=https://api.j-doc-chat.com
+    expose:
+      - "80"
+    networks:
+      - jdocchat-network
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - jdocchat-network
+    restart: unless-stopped
+
+networks:
+  jdocchat-network:
+    driver: bridge
+
+volumes:
+  uploads_data:
+  chroma_data:
+
+
